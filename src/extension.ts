@@ -9,15 +9,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
 		controller,
 		vscode.window.onDidChangeTextEditorSelection((event) => controller.onSelectionChanged(event)),
-		vscode.window.onDidChangeActiveTextEditor(() => controller.onActiveEditorChanged()),
 		vscode.commands.registerCommand('openpatch.patchSelection', () => controller.patchActiveSelection()),
-		vscode.commands.registerCommand('openpatch.submitInlinePrompt', (reply?: vscode.CommentReply) => {
-			controller.submitInlinePrompt(reply);
-		}),
-		vscode.commands.registerCommand(
-			'openpatch.cancelInlinePrompt',
-			(target?: vscode.CommentReply | vscode.CommentThread) => controller.cancelInlinePrompt(target),
-		),
 		vscode.commands.registerCommand('openpatch.setApiKey', async () => {
 			if (await setApiKey(context.secrets)) {
 				void vscode.window.showInformationMessage('OpenPatch API key stored securely on this machine.');

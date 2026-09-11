@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { ConfigurationError, readConfiguration } from './configuration';
 import { PatchRequestCancelledError, PatchRequestError, requestPatch } from './openAiClient';
 import { PendingDecoration } from './pendingDecoration';
-import { InlinePromptInput } from './promptInput';
+import { showPatchPrompt } from './promptInput';
 
 const SELECTION_DEBOUNCE_MS = 300;
 
@@ -20,7 +20,6 @@ export class PatchController implements vscode.Disposable {
 	private promptController: AbortController | undefined;
 	private requestController: AbortController | undefined;
 	private lastHandledSelection: string | undefined;
-	private readonly promptInput = new InlinePromptInput();
 	private disposed = false;
 
 	constructor(private readonly secrets: vscode.SecretStorage) {}
@@ -53,16 +52,6 @@ export class PatchController implements vscode.Disposable {
 		}, SELECTION_DEBOUNCE_MS);
 	}
 
-	onActiveEditorChanged(): void {
-		if (this.disposed || this.requestController) {
-			return;
-		}
-
-		this.clearDebounce();
-		this.promptController?.abort();
-		this.lastHandledSelection = undefined;
-	}
-
 	async patchActiveSelection(): Promise<void> {
 		if (this.requestController || this.promptController) {
 			void vscode.window.showInformationMessage('OpenPatch is already handling a selection.');
@@ -80,20 +69,11 @@ export class PatchController implements vscode.Disposable {
 		await this.promptAndPatch(snapshot);
 	}
 
-	submitInlinePrompt(reply?: vscode.CommentReply): void {
-		this.promptInput.submit(reply);
-	}
-
-	cancelInlinePrompt(target?: vscode.CommentReply | vscode.CommentThread): void {
-		this.promptInput.cancel(target);
-	}
-
 	dispose(): void {
 		this.disposed = true;
 		this.clearDebounce();
 		this.promptController?.abort();
 		this.requestController?.abort();
-		this.promptInput.dispose();
 	}
 
 	private async promptAndPatch(snapshot: SelectionSnapshot): Promise<void> {
@@ -106,11 +86,7 @@ export class PatchController implements vscode.Disposable {
 		this.promptController = promptController;
 		let instruction: string | undefined;
 		try {
-			instruction = await this.promptInput.show(
-				snapshot.editor.document.uri,
-				snapshot.range,
-				promptController.signal,
-			);
+			instruction = await showPatchPrompt(promptController.signal);
 		} finally {
 			if (this.promptController === promptController) {
 				this.promptController = undefined;

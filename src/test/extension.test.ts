@@ -9,22 +9,7 @@ suite('OpenPatch extension', () => {
 
 		const commands = await vscode.commands.getCommands(true);
 		assert.ok(commands.includes('openpatch.patchSelection'));
-		assert.ok(commands.includes('openpatch.submitInlinePrompt'));
-		assert.ok(commands.includes('openpatch.cancelInlinePrompt'));
 		assert.ok(commands.includes('openpatch.setApiKey'));
 		assert.ok(commands.includes('openpatch.clearApiKey'));
-	});
-
-	test('opens and cancels an inline prompt without changing text', async () => {
-		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: 'Patch me' });
-		const editor = await vscode.window.showTextDocument(document);
-		editor.selection = new vscode.Selection(0, 0, 0, document.getText().length);
-
-		const patch = vscode.commands.executeCommand('openpatch.patchSelection');
-		await new Promise((resolve) => setTimeout(resolve, 50));
-		await vscode.commands.executeCommand('openpatch.cancelInlinePrompt');
-		await patch;
-
-		assert.strictEqual(document.getText(), 'Patch me');
 	});
 });

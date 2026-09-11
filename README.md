@@ -5,12 +5,12 @@ OpenPatch rewrites selected Markdown with an OpenAI-compatible model endpoint. S
 ## Use OpenPatch
 
 1. Open a Markdown file and select one range of text.
-2. Enter an instruction in the OpenPatch prompt anchored beside the selection.
-3. Press **Patch**.
+2. Enter an instruction in the OpenPatch prompt.
+3. Press Enter or the send icon.
 4. The selection pulses red while the endpoint generates its replacement.
 5. The returned Markdown replaces the selection as one undoable edit.
 
-The inline prompt opens automatically after a selection settles. Press **Cancel** or change the selection to dismiss it. You can also run **OpenPatch: Patch Selected Markdown** from the Command Palette.
+The prompt opens automatically after a selection settles. You can also run **OpenPatch: Patch Selected Markdown** from the Command Palette.
 
 OpenPatch sends only the configured system prompt, your instruction, and the exact selected text. It does not send the file name, surrounding text, workspace contents, or editor history.
 

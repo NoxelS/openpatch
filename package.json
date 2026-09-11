@@ -20,8 +20,6 @@
   "activationEvents": [
     "onLanguage:markdown",
     "onCommand:openpatch.patchSelection",
-    "onCommand:openpatch.submitInlinePrompt",
-    "onCommand:openpatch.cancelInlinePrompt",
     "onCommand:openpatch.setApiKey",
     "onCommand:openpatch.clearApiKey"
   ],
@@ -42,16 +40,6 @@
         "title": "OpenPatch: Patch Selected Markdown"
       },
       {
-        "command": "openpatch.submitInlinePrompt",
-        "title": "Patch",
-        "enablement": "!commentIsEmpty"
-      },
-      {
-        "command": "openpatch.cancelInlinePrompt",
-        "title": "Cancel",
-        "icon": "$(close)"
-      },
-      {
         "command": "openpatch.setApiKey",
         "title": "OpenPatch: Set API Key"
       },
@@ -60,37 +48,6 @@
         "title": "OpenPatch: Clear API Key"
       }
     ],
-    "menus": {
-      "commandPalette": [
-        {
-          "command": "openpatch.submitInlinePrompt",
-          "when": "false"
-        },
-        {
-          "command": "openpatch.cancelInlinePrompt",
-          "when": "false"
-        }
-      ],
-      "comments/commentThread/context": [
-        {
-          "command": "openpatch.cancelInlinePrompt",
-          "group": "inline@1",
-          "when": "commentController == openpatch && commentThread == openpatchPrompt"
-        },
-        {
-          "command": "openpatch.submitInlinePrompt",
-          "group": "inline@2",
-          "when": "commentController == openpatch && commentThread == openpatchPrompt"
-        }
-      ],
-      "comments/commentThread/title": [
-        {
-          "command": "openpatch.cancelInlinePrompt",
-          "group": "navigation",
-          "when": "commentController == openpatch && commentThread == openpatchPrompt"
-        }
-      ]
-    },
     "configuration": {
       "title": "OpenPatch",
       "properties": {
