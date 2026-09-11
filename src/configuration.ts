@@ -7,6 +7,7 @@ export interface PatchConfiguration {
 	readonly model: string;
 	readonly systemPrompt: string;
 	readonly requestTimeoutMs: number;
+	readonly qwenDisableThinking: boolean;
 	readonly apiKey?: string;
 }
 
@@ -22,6 +23,7 @@ export interface ConfigurationValues {
 	readonly model: unknown;
 	readonly systemPrompt: unknown;
 	readonly requestTimeoutMs: unknown;
+	readonly qwenDisableThinking: unknown;
 	readonly apiKey?: string;
 }
 
@@ -30,9 +32,13 @@ export function validateConfiguration(values: ConfigurationValues): PatchConfigu
 	const model = requireNonEmptyString(values.model, 'OpenPatch model');
 	const systemPrompt = requireNonEmptyString(values.systemPrompt, 'OpenPatch system prompt');
 	const requestTimeoutMs = values.requestTimeoutMs;
+	const qwenDisableThinking = values.qwenDisableThinking;
 
 	if (!Number.isInteger(requestTimeoutMs) || (requestTimeoutMs as number) < 1000 || (requestTimeoutMs as number) > 300000) {
 		throw new ConfigurationError('OpenPatch request timeout must be an integer between 1,000 and 300,000 milliseconds.');
+	}
+	if (typeof qwenDisableThinking !== 'boolean') {
+		throw new ConfigurationError('OpenPatch Qwen thinking control must be enabled or disabled.');
 	}
 
 	let endpoint: URL;
@@ -57,6 +63,7 @@ export function validateConfiguration(values: ConfigurationValues): PatchConfigu
 		model,
 		systemPrompt,
 		requestTimeoutMs: requestTimeoutMs as number,
+		qwenDisableThinking,
 		apiKey: values.apiKey || undefined,
 	};
 }
@@ -68,6 +75,7 @@ export async function readConfiguration(secrets: vscode.SecretStorage): Promise<
 		model: configuration.get('model'),
 		systemPrompt: configuration.get('systemPrompt'),
 		requestTimeoutMs: configuration.get('requestTimeoutMs'),
+		qwenDisableThinking: configuration.get('qwenDisableThinking'),
 		apiKey: await secrets.get(API_KEY_SECRET),
 	});
 }

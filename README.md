@@ -22,6 +22,7 @@ Open VS Code Settings and search for `OpenPatch`:
 - `openpatch.model`: model identifier understood by that endpoint.
 - `openpatch.systemPrompt`: instructions controlling the Markdown rewrite.
 - `openpatch.requestTimeoutMs`: request timeout from 1 to 300 seconds.
+- `openpatch.qwenDisableThinking`: request faster non-thinking mode for Qwen models served by a compatible vLLM endpoint; enabled by default.
 
 The model setting has no default, so configure it before the first request. The endpoint defaults to OpenAI's Chat Completions endpoint. Local services may use loopback HTTP URLs such as `http://localhost:11434/v1/chat/completions`; non-loopback endpoints must use HTTPS.
 
@@ -43,6 +44,18 @@ The initial release targets the widely implemented OpenAI Chat Completions shape
 ```
 
 The endpoint must return replacement text at `choices[0].message.content`. Streaming and the Responses API are not part of the initial release.
+
+When `openpatch.qwenDisableThinking` is enabled and the model ID contains `qwen`, OpenPatch adds this vLLM/Qwen extension to the request:
+
+```json
+{
+  "chat_template_kwargs": {
+    "enable_thinking": false
+  }
+}
+```
+
+This parameter is not part of the core OpenAI API. Turn the setting off if a Qwen endpoint rejects it.
 
 ## Safety behavior
 

@@ -7,6 +7,7 @@ const validValues = {
 	model: 'example-model',
 	systemPrompt: 'Patch Markdown.',
 	requestTimeoutMs: 60000,
+	qwenDisableThinking: true,
 };
 
 suite('configuration', () => {
@@ -29,5 +30,6 @@ suite('configuration', () => {
 		assert.throws(() => validateConfiguration({ ...validValues, model: '' }), ConfigurationError);
 		assert.throws(() => validateConfiguration({ ...validValues, systemPrompt: '' }), ConfigurationError);
 		assert.throws(() => validateConfiguration({ ...validValues, requestTimeoutMs: 10 }), ConfigurationError);
+		assert.throws(() => validateConfiguration({ ...validValues, qwenDisableThinking: 'yes' }), ConfigurationError);
 	});
 });

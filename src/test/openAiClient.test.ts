@@ -13,6 +13,7 @@ const configuration: PatchConfiguration = {
 	model: 'test-model',
 	systemPrompt: 'Patch Markdown.',
 	requestTimeoutMs: 1000,
+	qwenDisableThinking: true,
 	apiKey: 'secret-value',
 };
 
@@ -30,6 +31,26 @@ suite('OpenAI-compatible client', () => {
 			instruction: 'Improve this.',
 			selected_markdown: selectedMarkdown,
 		});
+	});
+
+	test('disables thinking only for Qwen model IDs', () => {
+		const request = { instruction: 'Improve this.', selectedMarkdown: 'Text' };
+		const qwenBody = buildChatCompletionBody(
+			{ ...configuration, model: 'qwen3.8-27b' },
+			request,
+		) as { chat_template_kwargs?: { enable_thinking: boolean } };
+		const otherBody = buildChatCompletionBody(
+			{ ...configuration, model: 'another-model' },
+			request,
+		) as { chat_template_kwargs?: { enable_thinking: boolean } };
+		const optedOutBody = buildChatCompletionBody(
+			{ ...configuration, model: 'qwen3.8-27b', qwenDisableThinking: false },
+			request,
+		) as { chat_template_kwargs?: { enable_thinking: boolean } };
+
+		assert.deepStrictEqual(qwenBody.chat_template_kwargs, { enable_thinking: false });
+		assert.strictEqual(otherBody.chat_template_kwargs, undefined);
+		assert.strictEqual(optedOutBody.chat_template_kwargs, undefined);
 	});
 
 	test('parses string and text-part responses exactly', () => {

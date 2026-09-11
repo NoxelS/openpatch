@@ -20,7 +20,7 @@ export class PatchRequestCancelledError extends Error {
 }
 
 export function buildChatCompletionBody(configuration: PatchConfiguration, request: PatchRequest): object {
-	return {
+	const body: Record<string, unknown> = {
 		model: configuration.model,
 		messages: [
 			{ role: 'system', content: configuration.systemPrompt },
@@ -34,6 +34,12 @@ export function buildChatCompletionBody(configuration: PatchConfiguration, reque
 		],
 		stream: false,
 	};
+
+	if (configuration.qwenDisableThinking && configuration.model.toLowerCase().includes('qwen')) {
+		body.chat_template_kwargs = { enable_thinking: false };
+	}
+
+	return body;
 }
 
 export function parseChatCompletion(data: unknown): string {
