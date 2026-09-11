@@ -1,0 +1,110 @@
+import * as vscode from 'vscode';
+
+export const API_KEY_SECRET = 'openpatch.apiKey';
+
+export interface PatchConfiguration {
+	readonly endpoint: string;
+	readonly model: string;
+	readonly systemPrompt: string;
+	readonly requestTimeoutMs: number;
+	readonly apiKey?: string;
+}
+
+export class ConfigurationError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'ConfigurationError';
+	}
+}
+
+export interface ConfigurationValues {
+	readonly endpoint: unknown;
+	readonly model: unknown;
+	readonly systemPrompt: unknown;
+	readonly requestTimeoutMs: unknown;
+	readonly apiKey?: string;
+}
+
+export function validateConfiguration(values: ConfigurationValues): PatchConfiguration {
+	const endpointValue = requireNonEmptyString(values.endpoint, 'OpenPatch endpoint');
+	const model = requireNonEmptyString(values.model, 'OpenPatch model');
+	const systemPrompt = requireNonEmptyString(values.systemPrompt, 'OpenPatch system prompt');
+	const requestTimeoutMs = values.requestTimeoutMs;
+
+	if (!Number.isInteger(requestTimeoutMs) || (requestTimeoutMs as number) < 1000 || (requestTimeoutMs as number) > 300000) {
+		throw new ConfigurationError('OpenPatch request timeout must be an integer between 1,000 and 300,000 milliseconds.');
+	}
+
+	let endpoint: URL;
+	try {
+		endpoint = new URL(endpointValue);
+	} catch {
+		throw new ConfigurationError('OpenPatch endpoint must be a valid absolute URL.');
+	}
+
+	if (endpoint.protocol !== 'https:' && endpoint.protocol !== 'http:') {
+		throw new ConfigurationError('OpenPatch endpoint must use HTTPS, or HTTP for a loopback address.');
+	}
+	if (endpoint.username || endpoint.password) {
+		throw new ConfigurationError('OpenPatch endpoint must not contain embedded credentials.');
+	}
+	if (endpoint.protocol === 'http:' && !isLoopbackHost(endpoint.hostname)) {
+		throw new ConfigurationError('OpenPatch only allows unencrypted HTTP for loopback endpoints.');
+	}
+
+	return {
+		endpoint: endpoint.toString(),
+		model,
+		systemPrompt,
+		requestTimeoutMs: requestTimeoutMs as number,
+		apiKey: values.apiKey || undefined,
+	};
+}
+
+export async function readConfiguration(secrets: vscode.SecretStorage): Promise<PatchConfiguration> {
+	const configuration = vscode.workspace.getConfiguration('openpatch');
+	return validateConfiguration({
+		endpoint: configuration.get('endpoint'),
+		model: configuration.get('model'),
+		systemPrompt: configuration.get('systemPrompt'),
+		requestTimeoutMs: configuration.get('requestTimeoutMs'),
+		apiKey: await secrets.get(API_KEY_SECRET),
+	});
+}
+
+export async function setApiKey(secrets: vscode.SecretStorage): Promise<boolean> {
+	const apiKey = await vscode.window.showInputBox({
+		title: 'OpenPatch: Set API Key',
+		prompt: 'Stored in VS Code SecretStorage and never written to settings.',
+		password: true,
+		ignoreFocusOut: true,
+		validateInput: (value) => value.trim().length === 0 ? 'Enter an API key.' : undefined,
+	});
+	if (apiKey === undefined) {
+		return false;
+	}
+
+	await secrets.store(API_KEY_SECRET, apiKey.trim());
+	return true;
+}
+
+export async function clearApiKey(secrets: vscode.SecretStorage): Promise<boolean> {
+	if (await secrets.get(API_KEY_SECRET) === undefined) {
+		return false;
+	}
+
+	await secrets.delete(API_KEY_SECRET);
+	return true;
+}
+
+function requireNonEmptyString(value: unknown, label: string): string {
+	if (typeof value !== 'string' || value.trim().length === 0) {
+		throw new ConfigurationError(`${label} is not configured.`);
+	}
+	return value.trim();
+}
+
+function isLoopbackHost(hostname: string): boolean {
+	const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+	return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1';
+}
