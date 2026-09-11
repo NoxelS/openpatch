@@ -2,7 +2,7 @@
   "name": "openpatch",
   "displayName": "OpenPatch",
   "description": "Edit selected Markdown with any OpenAI-compatible AI endpoint. Bring your own model, endpoint, and API key. Select, prompt, patch.",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "NoelPascalSchwabenland",
   "license": "MIT",
   "icon": "assets/openpatch.png",
