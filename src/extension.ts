@@ -9,6 +9,7 @@ export function activate(context: vscode.ExtensionContext): void {
 	context.subscriptions.push(
 		controller,
 		vscode.window.onDidChangeTextEditorSelection((event) => controller.onSelectionChanged(event)),
+		vscode.workspace.onDidChangeTextDocument((event) => controller.onDocumentChanged(event)),
 		vscode.commands.registerCommand('openpatch.patchSelection', () => controller.patchActiveSelection()),
 		vscode.commands.registerCommand('openpatch.setApiKey', async () => {
 			if (await setApiKey(context.secrets)) {

@@ -7,6 +7,7 @@ const validValues = {
 	model: 'example-model',
 	systemPrompt: 'Patch Markdown.',
 	requestTimeoutMs: 60000,
+	maxConcurrentPatches: 3,
 	chatTemplateKwargs: {},
 };
 
@@ -33,10 +34,12 @@ suite('configuration', () => {
 		);
 	});
 
-	test('requires model, prompt, and a bounded integer timeout', () => {
+	test('requires model, prompt, a bounded integer timeout, and a bounded concurrency limit', () => {
 		assert.throws(() => validateConfiguration({ ...validValues, model: '' }), ConfigurationError);
 		assert.throws(() => validateConfiguration({ ...validValues, systemPrompt: '' }), ConfigurationError);
 		assert.throws(() => validateConfiguration({ ...validValues, requestTimeoutMs: 10 }), ConfigurationError);
+		assert.throws(() => validateConfiguration({ ...validValues, maxConcurrentPatches: 0 }), ConfigurationError);
+		assert.throws(() => validateConfiguration({ ...validValues, maxConcurrentPatches: 11 }), ConfigurationError);
 		assert.throws(() => validateConfiguration({ ...validValues, chatTemplateKwargs: 'enable_thinking=false' }), ConfigurationError);
 		assert.throws(() => validateConfiguration({ ...validValues, chatTemplateKwargs: [] }), ConfigurationError);
 	});

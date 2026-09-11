@@ -81,12 +81,21 @@
           "order": 4,
           "description": "Maximum time in milliseconds to wait for the endpoint."
         },
+        "openpatch.maxConcurrentPatches": {
+          "type": "number",
+          "default": 3,
+          "minimum": 1,
+          "maximum": 10,
+          "scope": "window",
+          "order": 5,
+          "description": "Maximum number of selected Markdown patches sent to the endpoint at once. Additional patches remain queued and animated."
+        },
         "openpatch.chatTemplateKwargs": {
           "type": "object",
           "default": {},
           "additionalProperties": true,
           "scope": "window",
-          "order": 5,
+          "order": 6,
           "description": "Chat-template keyword arguments forwarded to compatible endpoints. For example, set {\"enable_thinking\": false} to request non-thinking mode."
         }
       }

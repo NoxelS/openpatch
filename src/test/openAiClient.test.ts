@@ -13,6 +13,7 @@ const configuration: PatchConfiguration = {
 	model: 'test-model',
 	systemPrompt: 'Patch Markdown.',
 	requestTimeoutMs: 1000,
+	maxConcurrentPatches: 3,
 	chatTemplateKwargs: {},
 	apiKey: 'secret-value',
 };

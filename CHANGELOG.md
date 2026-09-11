@@ -10,5 +10,6 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Automatically prompt after a stable selection, with a manual Command Palette fallback.
 - Store optional bearer credentials in VS Code SecretStorage.
 - Animate pending selections without modifying document content.
-- Cancel safely when the document changes, the user cancels, or the request times out.
+- Patch multiple independent selections concurrently, with animated queued selections and a configurable request limit.
+- Keep pending patches alive across edits outside their selections; cancel only the patch whose selected text changes.
 - Forward explicitly configured chat-template keyword arguments to compatible endpoints.

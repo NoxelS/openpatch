@@ -23,7 +23,7 @@ interface AnimatedCharacter {
 export class PendingDecoration implements vscode.Disposable {
 	private readonly maskedCharacters: vscode.TextEditorDecorationType;
 	private readonly shuffledCharacters: vscode.TextEditorDecorationType;
-	private readonly characters: AnimatedCharacter[];
+	private characters: AnimatedCharacter[];
 	private readonly timer: NodeJS.Timeout | undefined;
 	private disposed = false;
 
@@ -56,6 +56,16 @@ export class PendingDecoration implements vscode.Disposable {
 		this.editor.setDecorations(this.shuffledCharacters, []);
 		this.maskedCharacters.dispose();
 		this.shuffledCharacters.dispose();
+	}
+
+	update(range: vscode.Range): void {
+		if (this.disposed) {
+			return;
+		}
+
+		this.characters = getAnimatedCharacters(this.editor.document, range);
+		this.editor.setDecorations(this.maskedCharacters, this.characters.map((character) => character.range));
+		this.render();
 	}
 
 	private render(): void {

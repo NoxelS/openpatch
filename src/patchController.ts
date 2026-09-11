@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 
-import { ConfigurationError, readConfiguration } from './configuration';
+import { ConfigurationError, PatchConfiguration, readConfiguration } from './configuration';
 import { PatchRequestCancelledError, PatchRequestError, requestPatch } from './openAiClient';
 import { PendingDecoration } from './pendingDecoration';
 import { showPatchPrompt } from './promptInput';
+import { OffsetRange, rangesOverlap, rebaseOffsetRange } from './trackedRange';
 
 const SELECTION_DEBOUNCE_MS = 300;
 
@@ -15,17 +16,35 @@ interface SelectionSnapshot {
 	readonly identity: string;
 }
 
+type PatchJobState = 'queued' | 'requesting' | 'applying' | 'cancelled';
+
+interface PatchJob {
+	readonly id: number;
+	readonly editor: vscode.TextEditor;
+	readonly documentUri: vscode.Uri;
+	readonly selectedText: string;
+	readonly instruction: string;
+	readonly configuration: PatchConfiguration;
+	readonly requestController: AbortController;
+	readonly decoration: PendingDecoration;
+	range: OffsetRange;
+	state: PatchJobState;
+}
+
 export class PatchController implements vscode.Disposable {
 	private debounceTimer: NodeJS.Timeout | undefined;
 	private promptController: AbortController | undefined;
-	private requestController: AbortController | undefined;
 	private lastHandledSelection: string | undefined;
+	private readonly jobs = new Map<number, PatchJob>();
+	private nextJobId = 1;
+	private activeRequestCount = 0;
+	private maxConcurrentPatches = 3;
 	private disposed = false;
 
 	constructor(private readonly secrets: vscode.SecretStorage) {}
 
 	onSelectionChanged(event: vscode.TextEditorSelectionChangeEvent): void {
-		if (this.disposed || this.requestController) {
+		if (this.disposed) {
 			return;
 		}
 
@@ -43,6 +62,11 @@ export class PatchController implements vscode.Disposable {
 		if (snapshot.identity === this.lastHandledSelection) {
 			return;
 		}
+		if (this.hasOverlappingJob(snapshot)) {
+			this.lastHandledSelection = snapshot.identity;
+			void vscode.window.showInformationMessage('OpenPatch is already patching this text.');
+			return;
+		}
 
 		this.debounceTimer = setTimeout(() => {
 			this.debounceTimer = undefined;
@@ -53,8 +77,8 @@ export class PatchController implements vscode.Disposable {
 	}
 
 	async patchActiveSelection(): Promise<void> {
-		if (this.requestController || this.promptController) {
-			void vscode.window.showInformationMessage('OpenPatch is already handling a selection.');
+		if (this.promptController) {
+			void vscode.window.showInformationMessage('OpenPatch is already waiting for a patch instruction.');
 			return;
 		}
 
@@ -62,6 +86,10 @@ export class PatchController implements vscode.Disposable {
 		const snapshot = editor ? createSelectionSnapshot(editor, editor.selections) : undefined;
 		if (!snapshot) {
 			void vscode.window.showErrorMessage('Select text in a Markdown editor before running OpenPatch.');
+			return;
+		}
+		if (this.hasOverlappingJob(snapshot)) {
+			void vscode.window.showInformationMessage('OpenPatch is already patching this text.');
 			return;
 		}
 
@@ -73,11 +101,36 @@ export class PatchController implements vscode.Disposable {
 		this.disposed = true;
 		this.clearDebounce();
 		this.promptController?.abort();
-		this.requestController?.abort();
+		for (const job of this.jobs.values()) {
+			job.requestController.abort();
+			job.decoration.dispose();
+		}
+		this.jobs.clear();
+	}
+
+	onDocumentChanged(event: vscode.TextDocumentChangeEvent): void {
+		if (this.disposed) {
+			return;
+		}
+
+		for (const job of [...this.jobs.values()]) {
+			if (job.documentUri.toString() !== event.document.uri.toString() || job.state === 'applying') {
+				continue;
+			}
+
+			const rebasedRange = rebaseOffsetRange(job.range, event.contentChanges);
+			if (!rebasedRange) {
+				this.cancelJob(job);
+				continue;
+			}
+
+			job.range = rebasedRange;
+			job.decoration.update(toDocumentRange(job.editor.document, rebasedRange));
+		}
 	}
 
 	private async promptAndPatch(snapshot: SelectionSnapshot): Promise<void> {
-		if (this.disposed || this.promptController || this.requestController) {
+		if (this.disposed || this.promptController || this.hasOverlappingJob(snapshot)) {
 			return;
 		}
 
@@ -93,14 +146,19 @@ export class PatchController implements vscode.Disposable {
 			}
 		}
 
-		if (!instruction || this.disposed || !isSnapshotCurrent(snapshot)) {
+		if (!instruction || this.disposed) {
 			return;
 		}
 
-		await this.executePatch(snapshot, instruction);
+		const currentSnapshot = createSelectionSnapshot(snapshot.editor, snapshot.editor.selections);
+		if (!currentSnapshot || currentSnapshot.selectedText !== snapshot.selectedText) {
+			return;
+		}
+
+		await this.enqueuePatch(currentSnapshot, instruction);
 	}
 
-	private async executePatch(snapshot: SelectionSnapshot, instruction: string): Promise<void> {
+	private async enqueuePatch(snapshot: SelectionSnapshot, instruction: string): Promise<void> {
 		let configuration;
 		try {
 			configuration = await readConfiguration(this.secrets);
@@ -109,31 +167,57 @@ export class PatchController implements vscode.Disposable {
 			return;
 		}
 
-		const requestController = new AbortController();
-		this.requestController = requestController;
-		let documentChanged = false;
-		const documentChangeSubscription = vscode.workspace.onDidChangeTextDocument((event) => {
-			if (event.document.uri.toString() === snapshot.editor.document.uri.toString()) {
-				documentChanged = true;
-				requestController.abort();
-			}
-		});
-		const decoration = new PendingDecoration(snapshot.editor, snapshot.range);
+		this.maxConcurrentPatches = configuration.maxConcurrentPatches;
+		const range = toOffsetRange(snapshot.editor.document, snapshot.range);
+		if (this.hasOverlappingRange(snapshot.editor.document.uri, range)) {
+			void vscode.window.showInformationMessage('OpenPatch is already patching overlapping text.');
+			return;
+		}
 
+		const job: PatchJob = {
+			id: this.nextJobId++,
+			editor: snapshot.editor,
+			documentUri: snapshot.editor.document.uri,
+			selectedText: snapshot.selectedText,
+			instruction,
+			configuration,
+			requestController: new AbortController(),
+			decoration: new PendingDecoration(snapshot.editor, snapshot.range),
+			range,
+			state: 'queued',
+		};
+		this.jobs.set(job.id, job);
+		this.startQueuedPatches();
+	}
+
+	private startQueuedPatches(): void {
+		while (!this.disposed && this.activeRequestCount < this.maxConcurrentPatches) {
+			const job = [...this.jobs.values()].find((candidate) => candidate.state === 'queued');
+			if (!job) {
+				return;
+			}
+
+			job.state = 'requesting';
+			this.activeRequestCount += 1;
+			void this.runPatch(job);
+		}
+	}
+
+	private async runPatch(job: PatchJob): Promise<void> {
 		try {
 			const replacement = await vscode.window.withProgress(
 				{
 					location: vscode.ProgressLocation.Notification,
-					title: 'OpenPatch is patching the selection',
+					title: 'OpenPatch is patching a selection',
 					cancellable: true,
 				},
 				async (_progress, cancellationToken) => {
-					const cancellationSubscription = cancellationToken.onCancellationRequested(() => requestController.abort());
+					const cancellationSubscription = cancellationToken.onCancellationRequested(() => job.requestController.abort());
 					try {
 						return await requestPatch(
-							configuration,
-							{ instruction, selectedMarkdown: snapshot.selectedText },
-							requestController.signal,
+							job.configuration,
+							{ instruction: job.instruction, selectedMarkdown: job.selectedText },
+							job.requestController.signal,
 						);
 					} finally {
 						cancellationSubscription.dispose();
@@ -141,13 +225,13 @@ export class PatchController implements vscode.Disposable {
 				},
 			);
 
-			if (!isSnapshotCurrent(snapshot)) {
-				void vscode.window.showWarningMessage('OpenPatch did not apply the response because the document changed.');
+			if (!this.jobs.has(job.id) || job.state !== 'requesting' || !isJobTargetCurrent(job)) {
 				return;
 			}
 
-			const applied = await snapshot.editor.edit(
-				(editBuilder) => editBuilder.replace(snapshot.range, replacement),
+			job.state = 'applying';
+			const applied = await job.editor.edit(
+				(editBuilder) => editBuilder.replace(toDocumentRange(job.editor.document, job.range), replacement),
 				{ undoStopBefore: true, undoStopAfter: true },
 			);
 			if (!applied) {
@@ -155,23 +239,46 @@ export class PatchController implements vscode.Disposable {
 			}
 		} catch (error) {
 			if (error instanceof PatchRequestCancelledError) {
-				if (documentChanged) {
-					void vscode.window.showWarningMessage('OpenPatch cancelled the request because the document changed.');
-				} else if (error.timedOut) {
+				if (error.timedOut && this.jobs.has(job.id)) {
 					void vscode.window.showErrorMessage(error.message);
 				}
 				return;
 			}
 
 			const message = error instanceof PatchRequestError ? error.message : 'OpenPatch could not patch the selection.';
-			void vscode.window.showErrorMessage(message);
-		} finally {
-			documentChangeSubscription.dispose();
-			decoration.dispose();
-			if (this.requestController === requestController) {
-				this.requestController = undefined;
+			if (this.jobs.has(job.id)) {
+				void vscode.window.showErrorMessage(message);
 			}
+		} finally {
+			this.activeRequestCount -= 1;
+			this.removeJob(job);
+			this.startQueuedPatches();
 		}
+	}
+
+	private cancelJob(job: PatchJob): void {
+		if (!this.jobs.has(job.id)) {
+			return;
+		}
+
+		job.state = 'cancelled';
+		job.requestController.abort();
+		this.removeJob(job);
+		this.startQueuedPatches();
+	}
+
+	private removeJob(job: PatchJob): void {
+		if (this.jobs.delete(job.id)) {
+			job.decoration.dispose();
+		}
+	}
+
+	private hasOverlappingJob(snapshot: SelectionSnapshot): boolean {
+		return this.hasOverlappingRange(snapshot.editor.document.uri, toOffsetRange(snapshot.editor.document, snapshot.range));
+	}
+
+	private hasOverlappingRange(uri: vscode.Uri, range: OffsetRange): boolean {
+		return [...this.jobs.values()].some((job) => job.documentUri.toString() === uri.toString() && rangesOverlap(job.range, range));
 	}
 
 	private clearDebounce(): void {
@@ -219,6 +326,19 @@ function createSelectionSnapshot(
 function isSnapshotCurrent(snapshot: SelectionSnapshot): boolean {
 	return snapshot.editor.document.version === snapshot.documentVersion &&
 		snapshot.editor.document.getText(snapshot.range) === snapshot.selectedText;
+}
+
+function toOffsetRange(document: vscode.TextDocument, range: vscode.Range): OffsetRange {
+	return { start: document.offsetAt(range.start), end: document.offsetAt(range.end) };
+}
+
+function toDocumentRange(document: vscode.TextDocument, range: OffsetRange): vscode.Range {
+	return new vscode.Range(document.positionAt(range.start), document.positionAt(range.end));
+}
+
+function isJobTargetCurrent(job: PatchJob): boolean {
+	const document = job.editor.document;
+	return document.uri.toString() === job.documentUri.toString() && document.getText(toDocumentRange(document, job.range)) === job.selectedText;
 }
 
 async function showConfigurationError(error: unknown): Promise<void> {

@@ -7,6 +7,7 @@ export interface PatchConfiguration {
 	readonly model: string;
 	readonly systemPrompt: string;
 	readonly requestTimeoutMs: number;
+	readonly maxConcurrentPatches: number;
 	readonly chatTemplateKwargs: Readonly<Record<string, unknown>>;
 	readonly apiKey?: string;
 }
@@ -23,6 +24,7 @@ export interface ConfigurationValues {
 	readonly model: unknown;
 	readonly systemPrompt: unknown;
 	readonly requestTimeoutMs: unknown;
+	readonly maxConcurrentPatches: unknown;
 	readonly chatTemplateKwargs: unknown;
 	readonly apiKey?: string;
 }
@@ -32,10 +34,14 @@ export function validateConfiguration(values: ConfigurationValues): PatchConfigu
 	const model = requireNonEmptyString(values.model, 'OpenPatch model');
 	const systemPrompt = requireNonEmptyString(values.systemPrompt, 'OpenPatch system prompt');
 	const requestTimeoutMs = values.requestTimeoutMs;
+	const maxConcurrentPatches = values.maxConcurrentPatches;
 	const chatTemplateKwargs = values.chatTemplateKwargs;
 
 	if (!Number.isInteger(requestTimeoutMs) || (requestTimeoutMs as number) < 1000 || (requestTimeoutMs as number) > 300000) {
 		throw new ConfigurationError('OpenPatch request timeout must be an integer between 1,000 and 300,000 milliseconds.');
+	}
+	if (!Number.isInteger(maxConcurrentPatches) || (maxConcurrentPatches as number) < 1 || (maxConcurrentPatches as number) > 10) {
+		throw new ConfigurationError('OpenPatch concurrent patch limit must be an integer between 1 and 10.');
 	}
 	if (!isConfigurationObject(chatTemplateKwargs)) {
 		throw new ConfigurationError('OpenPatch chat template kwargs must be an object.');
@@ -63,6 +69,7 @@ export function validateConfiguration(values: ConfigurationValues): PatchConfigu
 		model,
 		systemPrompt,
 		requestTimeoutMs: requestTimeoutMs as number,
+		maxConcurrentPatches: maxConcurrentPatches as number,
 		chatTemplateKwargs,
 		apiKey: values.apiKey || undefined,
 	};
@@ -75,6 +82,7 @@ export async function readConfiguration(secrets: vscode.SecretStorage): Promise<
 		model: configuration.get('model'),
 		systemPrompt: configuration.get('systemPrompt'),
 		requestTimeoutMs: configuration.get('requestTimeoutMs'),
+		maxConcurrentPatches: configuration.get('maxConcurrentPatches'),
 		chatTemplateKwargs: configuration.get('chatTemplateKwargs'),
 		apiKey: await secrets.get(API_KEY_SECRET),
 	});
