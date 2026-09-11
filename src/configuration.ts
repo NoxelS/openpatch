@@ -7,7 +7,7 @@ export interface PatchConfiguration {
 	readonly model: string;
 	readonly systemPrompt: string;
 	readonly requestTimeoutMs: number;
-	readonly qwenDisableThinking: boolean;
+	readonly chatTemplateKwargs: Readonly<Record<string, unknown>>;
 	readonly apiKey?: string;
 }
 
@@ -23,7 +23,7 @@ export interface ConfigurationValues {
 	readonly model: unknown;
 	readonly systemPrompt: unknown;
 	readonly requestTimeoutMs: unknown;
-	readonly qwenDisableThinking: unknown;
+	readonly chatTemplateKwargs: unknown;
 	readonly apiKey?: string;
 }
 
@@ -32,13 +32,13 @@ export function validateConfiguration(values: ConfigurationValues): PatchConfigu
 	const model = requireNonEmptyString(values.model, 'OpenPatch model');
 	const systemPrompt = requireNonEmptyString(values.systemPrompt, 'OpenPatch system prompt');
 	const requestTimeoutMs = values.requestTimeoutMs;
-	const qwenDisableThinking = values.qwenDisableThinking;
+	const chatTemplateKwargs = values.chatTemplateKwargs;
 
 	if (!Number.isInteger(requestTimeoutMs) || (requestTimeoutMs as number) < 1000 || (requestTimeoutMs as number) > 300000) {
 		throw new ConfigurationError('OpenPatch request timeout must be an integer between 1,000 and 300,000 milliseconds.');
 	}
-	if (typeof qwenDisableThinking !== 'boolean') {
-		throw new ConfigurationError('OpenPatch Qwen thinking control must be enabled or disabled.');
+	if (!isConfigurationObject(chatTemplateKwargs)) {
+		throw new ConfigurationError('OpenPatch chat template kwargs must be an object.');
 	}
 
 	let endpoint: URL;
@@ -63,7 +63,7 @@ export function validateConfiguration(values: ConfigurationValues): PatchConfigu
 		model,
 		systemPrompt,
 		requestTimeoutMs: requestTimeoutMs as number,
-		qwenDisableThinking,
+		chatTemplateKwargs,
 		apiKey: values.apiKey || undefined,
 	};
 }
@@ -75,7 +75,7 @@ export async function readConfiguration(secrets: vscode.SecretStorage): Promise<
 		model: configuration.get('model'),
 		systemPrompt: configuration.get('systemPrompt'),
 		requestTimeoutMs: configuration.get('requestTimeoutMs'),
-		qwenDisableThinking: configuration.get('qwenDisableThinking'),
+		chatTemplateKwargs: configuration.get('chatTemplateKwargs'),
 		apiKey: await secrets.get(API_KEY_SECRET),
 	});
 }
@@ -115,4 +115,8 @@ function requireNonEmptyString(value: unknown, label: string): string {
 function isLoopbackHost(hostname: string): boolean {
 	const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '');
 	return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1';
+}
+
+function isConfigurationObject(value: unknown): value is Readonly<Record<string, unknown>> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

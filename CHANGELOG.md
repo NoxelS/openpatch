@@ -11,4 +11,4 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Store optional bearer credentials in VS Code SecretStorage.
 - Animate pending selections without modifying document content.
 - Cancel safely when the document changes, the user cancels, or the request times out.
-- Request Qwen non-thinking mode by default through the vLLM chat-template parameter.
+- Forward explicitly configured chat-template keyword arguments to compatible endpoints.

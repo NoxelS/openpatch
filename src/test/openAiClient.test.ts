@@ -13,7 +13,7 @@ const configuration: PatchConfiguration = {
 	model: 'test-model',
 	systemPrompt: 'Patch Markdown.',
 	requestTimeoutMs: 1000,
-	qwenDisableThinking: true,
+	chatTemplateKwargs: {},
 	apiKey: 'secret-value',
 };
 
@@ -33,24 +33,16 @@ suite('OpenAI-compatible client', () => {
 		});
 	});
 
-	test('disables thinking only for Qwen model IDs', () => {
+	test('forwards configured chat-template kwargs independently of the model', () => {
 		const request = { instruction: 'Improve this.', selectedMarkdown: 'Text' };
-		const qwenBody = buildChatCompletionBody(
-			{ ...configuration, model: 'qwen3.8-27b' },
+		const configuredBody = buildChatCompletionBody(
+			{ ...configuration, model: 'another-model', chatTemplateKwargs: { enable_thinking: false, custom_option: 'value' } },
 			request,
-		) as { chat_template_kwargs?: { enable_thinking: boolean } };
-		const otherBody = buildChatCompletionBody(
-			{ ...configuration, model: 'another-model' },
-			request,
-		) as { chat_template_kwargs?: { enable_thinking: boolean } };
-		const optedOutBody = buildChatCompletionBody(
-			{ ...configuration, model: 'qwen3.8-27b', qwenDisableThinking: false },
-			request,
-		) as { chat_template_kwargs?: { enable_thinking: boolean } };
+		) as { chat_template_kwargs?: Record<string, unknown> };
+		const defaultBody = buildChatCompletionBody(configuration, request) as { chat_template_kwargs?: Record<string, unknown> };
 
-		assert.deepStrictEqual(qwenBody.chat_template_kwargs, { enable_thinking: false });
-		assert.strictEqual(otherBody.chat_template_kwargs, undefined);
-		assert.strictEqual(optedOutBody.chat_template_kwargs, undefined);
+		assert.deepStrictEqual(configuredBody.chat_template_kwargs, { enable_thinking: false, custom_option: 'value' });
+		assert.strictEqual(defaultBody.chat_template_kwargs, undefined);
 	});
 
 	test('parses string and text-part responses exactly', () => {

@@ -35,8 +35,8 @@ export function buildChatCompletionBody(configuration: PatchConfiguration, reque
 		stream: false,
 	};
 
-	if (configuration.qwenDisableThinking && configuration.model.toLowerCase().includes('qwen')) {
-		body.chat_template_kwargs = { enable_thinking: false };
+	if (Object.keys(configuration.chatTemplateKwargs).length > 0) {
+		body.chat_template_kwargs = configuration.chatTemplateKwargs;
 	}
 
 	return body;

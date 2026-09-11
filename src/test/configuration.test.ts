@@ -7,7 +7,7 @@ const validValues = {
 	model: 'example-model',
 	systemPrompt: 'Patch Markdown.',
 	requestTimeoutMs: 60000,
-	qwenDisableThinking: true,
+	chatTemplateKwargs: {},
 };
 
 suite('configuration', () => {
@@ -16,6 +16,13 @@ suite('configuration', () => {
 		assert.strictEqual(
 			validateConfiguration({ ...validValues, endpoint: 'http://localhost:11434/v1/chat/completions' }).endpoint,
 			'http://localhost:11434/v1/chat/completions',
+		);
+	});
+
+	test('accepts arbitrary chat-template kwargs', () => {
+		assert.deepStrictEqual(
+			validateConfiguration({ ...validValues, chatTemplateKwargs: { enable_thinking: false, tool_format: 'compact' } }).chatTemplateKwargs,
+			{ enable_thinking: false, tool_format: 'compact' },
 		);
 	});
 
@@ -30,6 +37,7 @@ suite('configuration', () => {
 		assert.throws(() => validateConfiguration({ ...validValues, model: '' }), ConfigurationError);
 		assert.throws(() => validateConfiguration({ ...validValues, systemPrompt: '' }), ConfigurationError);
 		assert.throws(() => validateConfiguration({ ...validValues, requestTimeoutMs: 10 }), ConfigurationError);
-		assert.throws(() => validateConfiguration({ ...validValues, qwenDisableThinking: 'yes' }), ConfigurationError);
+		assert.throws(() => validateConfiguration({ ...validValues, chatTemplateKwargs: 'enable_thinking=false' }), ConfigurationError);
+		assert.throws(() => validateConfiguration({ ...validValues, chatTemplateKwargs: [] }), ConfigurationError);
 	});
 });

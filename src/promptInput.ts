@@ -34,8 +34,8 @@ export function showPatchPrompt(signal: AbortSignal): Promise<string | undefined
 		const cancel = () => finish(undefined);
 
 		input.title = 'OpenPatch';
-		input.prompt = 'Describe how to patch the selected Markdown.';
-		input.placeholder = 'For example: make this clearer and more concise';
+		input.prompt = 'Specify your patch prompt.';
+		input.placeholder = 'I.e. fix typos and grammar';
 		input.ignoreFocusOut = false;
 		input.buttons = [sendButton];
 		subscriptions.push(

@@ -81,12 +81,13 @@
           "order": 4,
           "description": "Maximum time in milliseconds to wait for the endpoint."
         },
-        "openpatch.qwenDisableThinking": {
-          "type": "boolean",
-          "default": true,
+        "openpatch.chatTemplateKwargs": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": true,
           "scope": "window",
           "order": 5,
-          "description": "For Qwen model IDs, request faster non-thinking mode using the vLLM chat-template parameter. Disable this if the endpoint does not support chat_template_kwargs."
+          "description": "Chat-template keyword arguments forwarded to compatible endpoints. For example, set {\"enable_thinking\": false} to request non-thinking mode."
         }
       }
     }
