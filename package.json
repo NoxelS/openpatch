@@ -3,6 +3,9 @@
   "displayName": "OpenPatch",
   "description": "Edit selected Markdown with any OpenAI-compatible AI endpoint. Bring your own model, endpoint, and API key. Select, prompt, patch.",
   "version": "0.0.1",
+  "publisher": "NoelPascalSchwabenland",
+  "license": "MIT",
+  "icon": "assets/openpatch.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/NoxelS/openpatch.git"
@@ -15,8 +18,26 @@
     "vscode": "^1.137.0"
   },
   "categories": [
+    "Machine Learning",
     "Other"
   ],
+  "keywords": [
+    "markdown",
+    "ai",
+    "llm",
+    "openai",
+    "openai-compatible",
+    "editing",
+    "writing",
+    "patch"
+  ],
+  "galleryBanner": {
+    "color": "#173d57",
+    "theme": "dark"
+  },
+  "preview": true,
+  "pricing": "Free",
+  "qna": "https://github.com/NoxelS/openpatch/issues",
   "activationEvents": [
     "onLanguage:markdown",
     "onCommand:openpatch.patchSelection",
@@ -122,7 +143,9 @@
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "package:vsix": "vsce package",
+    "publish:marketplace": "vsce publish"
   },
   "devDependencies": {
     "@types/vscode": "^1.137.0",
@@ -135,7 +158,8 @@
     "webpack": "^5.107.2",
     "webpack-cli": "^7.0.3",
     "@vscode/test-cli": "^0.0.15",
-    "@vscode/test-electron": "^3.0.0"
+    "@vscode/test-electron": "^3.0.0",
+    "@vscode/vsce": "^3.9.2"
   },
   "overrides": {
     "diff": "^8.0.4",

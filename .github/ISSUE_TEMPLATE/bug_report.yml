@@ -1,0 +1,46 @@
+name: Bug report
+description: Report reproducible OpenPatch behavior.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: "Please remove API keys, document contents, and other sensitive data before submitting."
+  - type: input
+    id: version
+    attributes:
+      label: OpenPatch version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: vscode
+    attributes:
+      label: VS Code version and operating system
+    validations:
+      required: true
+  - type: input
+    id: endpoint
+    attributes:
+      label: Endpoint family
+      description: "For example, OpenAI-compatible local endpoint. Do not include a URL containing credentials."
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true

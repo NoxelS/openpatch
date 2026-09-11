@@ -1,0 +1,42 @@
+name: Publish an existing release to Marketplace
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish, for example v0.1.0
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install display server for extension-host tests
+        run: sudo apt-get update && sudo apt-get install --yes xvfb
+      - name: Install dependencies
+        run: npm ci
+      - name: Confirm tag and extension versions match
+        env:
+          TAG: ${{ inputs.tag }}
+        run: test "v$(node --print \"require('./package.json').version\")" = "$TAG"
+      - name: Test
+        run: xvfb-run --auto-servernum npm test
+      - name: Package VSIX
+        run: npm run package:vsix
+      - name: Publish to the Visual Studio Marketplace
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: |
+          test -n "$VSCE_PAT"
+          npm run publish:marketplace

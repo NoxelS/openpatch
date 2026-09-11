@@ -1,4 +1,6 @@
 .vscode/**
+.github/**
+.nvmrc
 .vscode-test/**
 out/**
 node_modules/**
@@ -12,3 +14,10 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
+.DS_Store
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+SECURITY.md
+SUPPORT.md
+GOVERNANCE.md
+RELEASING.md

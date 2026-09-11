@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a focused improvement to OpenPatch.
+title: "feature: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: "What user problem would this solve?"
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy or endpoint impact
+      description: "Does this alter what OpenPatch sends, stores, or exposes?"
