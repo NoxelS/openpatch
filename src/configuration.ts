@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 export const API_KEY_SECRET = 'openpatch.apiKey';
 
 export interface PatchConfiguration {
-	readonly endpoint: string;
+	readonly openAiBaseUrl: string;
 	readonly model: string;
 	readonly systemPrompt: string;
 	readonly requestTimeoutMs: number;
@@ -20,7 +20,7 @@ export class ConfigurationError extends Error {
 }
 
 export interface ConfigurationValues {
-	readonly endpoint: unknown;
+	readonly openAiBaseUrl: unknown;
 	readonly model: unknown;
 	readonly systemPrompt: unknown;
 	readonly requestTimeoutMs: unknown;
@@ -30,7 +30,7 @@ export interface ConfigurationValues {
 }
 
 export function validateConfiguration(values: ConfigurationValues): PatchConfiguration {
-	const endpointValue = requireNonEmptyString(values.endpoint, 'OpenPatch endpoint');
+	const openAiBaseUrlValue = requireNonEmptyString(values.openAiBaseUrl, 'OpenPatch OpenAI base URL');
 	const model = requireNonEmptyString(values.model, 'OpenPatch model');
 	const systemPrompt = requireNonEmptyString(values.systemPrompt, 'OpenPatch system prompt');
 	const requestTimeoutMs = values.requestTimeoutMs;
@@ -47,25 +47,28 @@ export function validateConfiguration(values: ConfigurationValues): PatchConfigu
 		throw new ConfigurationError('OpenPatch chat template kwargs must be an object.');
 	}
 
-	let endpoint: URL;
+	let openAiBaseUrl: URL;
 	try {
-		endpoint = new URL(endpointValue);
+		openAiBaseUrl = new URL(openAiBaseUrlValue);
 	} catch {
-		throw new ConfigurationError('OpenPatch endpoint must be a valid absolute URL.');
+		throw new ConfigurationError('OpenPatch OpenAI base URL must be a valid absolute URL.');
 	}
 
-	if (endpoint.protocol !== 'https:' && endpoint.protocol !== 'http:') {
-		throw new ConfigurationError('OpenPatch endpoint must use HTTPS, or HTTP for a loopback address.');
+	if (openAiBaseUrl.protocol !== 'https:' && openAiBaseUrl.protocol !== 'http:') {
+		throw new ConfigurationError('OpenPatch OpenAI base URL must use HTTPS, or HTTP for a loopback address.');
 	}
-	if (endpoint.username || endpoint.password) {
-		throw new ConfigurationError('OpenPatch endpoint must not contain embedded credentials.');
+	if (openAiBaseUrl.username || openAiBaseUrl.password) {
+		throw new ConfigurationError('OpenPatch OpenAI base URL must not contain embedded credentials.');
 	}
-	if (endpoint.protocol === 'http:' && !isLoopbackHost(endpoint.hostname)) {
-		throw new ConfigurationError('OpenPatch only allows unencrypted HTTP for loopback endpoints.');
+	if (openAiBaseUrl.search || openAiBaseUrl.hash) {
+		throw new ConfigurationError('OpenPatch OpenAI base URL must not contain a query string or fragment.');
+	}
+	if (openAiBaseUrl.protocol === 'http:' && !isLoopbackHost(openAiBaseUrl.hostname)) {
+		throw new ConfigurationError('OpenPatch only allows unencrypted HTTP for loopback OpenAI base URLs.');
 	}
 
 	return {
-		endpoint: endpoint.toString(),
+		openAiBaseUrl: openAiBaseUrl.toString(),
 		model,
 		systemPrompt,
 		requestTimeoutMs: requestTimeoutMs as number,
@@ -78,7 +81,7 @@ export function validateConfiguration(values: ConfigurationValues): PatchConfigu
 export async function readConfiguration(secrets: vscode.SecretStorage): Promise<PatchConfiguration> {
 	const configuration = vscode.workspace.getConfiguration('openpatch');
 	return validateConfiguration({
-		endpoint: configuration.get('endpoint'),
+		openAiBaseUrl: configuration.get('openAiBaseUrl'),
 		model: configuration.get('model'),
 		systemPrompt: configuration.get('systemPrompt'),
 		requestTimeoutMs: configuration.get('requestTimeoutMs'),

@@ -1,5 +1,7 @@
 import { PatchConfiguration } from './configuration';
 
+export type PatchDeltaHandler = (delta: string) => void;
+
 export interface PatchRequest {
 	readonly instruction: string;
 	readonly selectedMarkdown: string;
@@ -34,7 +36,7 @@ export function buildChatCompletionBody(configuration: PatchConfiguration, reque
 				}),
 			},
 		],
-		stream: false,
+		stream: true,
 	};
 
 	if (Object.keys(configuration.chatTemplateKwargs).length > 0) {
@@ -44,39 +46,11 @@ export function buildChatCompletionBody(configuration: PatchConfiguration, reque
 	return body;
 }
 
-export function parseChatCompletion(data: unknown): string {
-	if (!isRecord(data) || !Array.isArray(data.choices) || data.choices.length === 0) {
-		throw new PatchRequestError('The endpoint returned an invalid Chat Completions response.');
-	}
-
-	const firstChoice = data.choices[0];
-	if (!isRecord(firstChoice) || !isRecord(firstChoice.message)) {
-		throw new PatchRequestError('The endpoint returned an invalid Chat Completions response.');
-	}
-
-	const content = firstChoice.message.content;
-	let text: string | undefined;
-	if (typeof content === 'string') {
-		text = content;
-	} else if (Array.isArray(content)) {
-		const textParts = content
-			.filter((part): part is Record<string, unknown> => isRecord(part) && part.type === 'text' && typeof part.text === 'string')
-			.map((part) => part.text as string);
-		if (textParts.length > 0) {
-			text = textParts.join('');
-		}
-	}
-
-	if (text === undefined || text.length === 0) {
-		throw new PatchRequestError('The endpoint returned no replacement text.');
-	}
-	return text;
-}
-
 export async function requestPatch(
 	configuration: PatchConfiguration,
 	request: PatchRequest,
 	signal: AbortSignal,
+	onDelta: PatchDeltaHandler = () => {},
 	fetchImplementation: typeof fetch = fetch,
 ): Promise<string> {
 	const controller = new AbortController();
@@ -93,12 +67,15 @@ export async function requestPatch(
 			controller.abort();
 		}
 
-		const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+		const headers: Record<string, string> = {
+			Accept: 'text/event-stream',
+			'Content-Type': 'application/json',
+		};
 		if (configuration.apiKey) {
 			headers.Authorization = `Bearer ${configuration.apiKey}`;
 		}
 
-		const response = await fetchImplementation(configuration.endpoint, {
+		const response = await fetchImplementation(chatCompletionsUrl(configuration.openAiBaseUrl), {
 			method: 'POST',
 			headers,
 			body: JSON.stringify(buildChatCompletionBody(configuration, request)),
@@ -109,7 +86,7 @@ export async function requestPatch(
 			throw new PatchRequestError(messageForStatus(response.status), response.status);
 		}
 
-		return parseChatCompletion(await response.json());
+		return await readStreamingChatCompletion(response, onDelta);
 	} catch (error) {
 		if (controller.signal.aborted) {
 			throw new PatchRequestCancelledError(timedOut);
@@ -122,6 +99,104 @@ export async function requestPatch(
 		clearTimeout(timeout);
 		signal.removeEventListener('abort', cancel);
 	}
+}
+
+export function chatCompletionsUrl(openAiBaseUrl: string): string {
+	const url = new URL(openAiBaseUrl);
+	url.pathname = `${url.pathname.replace(/\/+$/, '')}/chat/completions`;
+	return url.toString();
+}
+
+async function readStreamingChatCompletion(response: Response, onDelta: PatchDeltaHandler): Promise<string> {
+	if (!response.body) {
+		throw new PatchRequestError('The endpoint returned an invalid streaming response.');
+	}
+
+	const reader = response.body.getReader();
+	const decoder = new TextDecoder();
+	let buffered = '';
+	let replacement = '';
+	let completed = false;
+
+	const consumeEvent = (event: string): void => {
+		const data = event
+			.split(/\r?\n/)
+			.filter((line) => line.startsWith('data:'))
+			.map((line) => line.slice(5).replace(/^ /, ''))
+			.join('\n');
+		if (!data) {
+			return;
+		}
+		if (data === '[DONE]') {
+			completed = true;
+			return;
+		}
+
+		let chunk: unknown;
+		try {
+			chunk = JSON.parse(data);
+		} catch {
+			throw new PatchRequestError('The endpoint returned an invalid streaming response.');
+		}
+
+		const delta = parseChatCompletionDelta(chunk);
+		if (delta) {
+			replacement += delta;
+			onDelta(delta);
+		}
+	};
+
+	const consumeBufferedEvents = (): void => {
+		let separator: RegExpExecArray | null;
+		while ((separator = /\r?\n\r?\n/.exec(buffered)) !== null) {
+			const event = buffered.slice(0, separator.index);
+			buffered = buffered.slice(separator.index + separator[0].length);
+			consumeEvent(event);
+		}
+	};
+
+	while (!completed) {
+		const { done, value } = await reader.read();
+		if (value) {
+			buffered += decoder.decode(value, { stream: !done });
+			consumeBufferedEvents();
+		}
+		if (done) {
+			buffered += decoder.decode();
+			consumeBufferedEvents();
+			break;
+		}
+	}
+
+	if (!completed) {
+		throw new PatchRequestError('The endpoint ended the streaming response unexpectedly.');
+	}
+	if (replacement.length === 0) {
+		throw new PatchRequestError('The endpoint returned no replacement text.');
+	}
+	return replacement;
+}
+
+function parseChatCompletionDelta(data: unknown): string | undefined {
+	if (!isRecord(data) || !Array.isArray(data.choices)) {
+		throw new PatchRequestError('The endpoint returned an invalid streaming response.');
+	}
+	if (data.choices.length === 0) {
+		return undefined;
+	}
+
+	const firstChoice = data.choices[0];
+	if (!isRecord(firstChoice) || !isRecord(firstChoice.delta)) {
+		throw new PatchRequestError('The endpoint returned an invalid streaming response.');
+	}
+	const content = firstChoice.delta.content;
+	if (content === undefined || content === null) {
+		return undefined;
+	}
+	if (typeof content !== 'string') {
+		throw new PatchRequestError('The endpoint returned an invalid streaming response.');
+	}
+	return content;
 }
 
 function messageForStatus(status: number): string {

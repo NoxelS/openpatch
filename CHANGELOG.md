@@ -13,3 +13,5 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Patch multiple independent selections concurrently, with animated queued selections and a configurable request limit.
 - Keep pending patches alive across edits outside their selections; cancel only the patch whose selected text changes.
 - Forward explicitly configured chat-template keyword arguments to compatible endpoints.
+- Stream Chat Completions deltas into the pending-selection animation before applying one final replacement.
+- Configure an OpenAI-compatible API base URL; OpenPatch appends the streamed Chat Completions path.

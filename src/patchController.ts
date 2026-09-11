@@ -222,6 +222,11 @@ export class PatchController implements vscode.Disposable {
 								documentMarkdown: job.editor.document.getText(),
 							},
 							job.requestController.signal,
+							(delta) => {
+								if (this.jobs.has(job.id) && job.state === 'requesting') {
+									job.decoration.appendStreamedText(delta);
+								}
+							},
 						);
 					} finally {
 						cancellationSubscription.dispose();

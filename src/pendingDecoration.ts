@@ -24,10 +24,13 @@ export class PendingDecoration implements vscode.Disposable {
 	private readonly maskedCharacters: vscode.TextEditorDecorationType;
 	private readonly shuffledCharacters: vscode.TextEditorDecorationType;
 	private characters: AnimatedCharacter[];
+	private range: vscode.Range;
+	private streamedCharacters: string[] = [];
 	private readonly timer: NodeJS.Timeout | undefined;
 	private disposed = false;
 
 	constructor(private readonly editor: vscode.TextEditor, range: vscode.Range) {
+		this.range = range;
 		this.characters = getAnimatedCharacters(editor.document, range);
 		this.maskedCharacters = vscode.window.createTextEditorDecorationType({
 			color: 'transparent',
@@ -63,8 +66,18 @@ export class PendingDecoration implements vscode.Disposable {
 			return;
 		}
 
+		this.range = range;
 		this.characters = getAnimatedCharacters(this.editor.document, range);
 		this.editor.setDecorations(this.maskedCharacters, this.characters.map((character) => character.range));
+		this.render();
+	}
+
+	appendStreamedText(delta: string): void {
+		if (this.disposed || delta.length === 0) {
+			return;
+		}
+
+		this.streamedCharacters.push(...delta);
 		this.render();
 	}
 
@@ -73,24 +86,45 @@ export class PendingDecoration implements vscode.Disposable {
 			return;
 		}
 
-		this.editor.setDecorations(
-			this.shuffledCharacters,
-			this.characters.map((character) => {
-				const shuffled = scrambleCharacter(character.source, Math.random, character.previous);
-				character.previous = shuffled;
-				return {
-					range: character.range,
-					renderOptions: {
-						before: {
-							contentText: shuffled,
-							color: new vscode.ThemeColor('editor.foreground'),
-							margin: '0 -1ch 0 0',
-						},
+		const preview = splitStreamedText(this.streamedCharacters.join(''), this.characters.length);
+		const decorations: vscode.DecorationOptions[] = this.characters.map((character, index) => {
+			const streamed = preview.revealed[index];
+			const visible = streamed ?? scrambleCharacter(character.source, Math.random, character.previous);
+			character.previous = visible;
+			return {
+				range: character.range,
+				renderOptions: {
+					before: {
+						contentText: visible,
+						color: new vscode.ThemeColor('editor.foreground'),
+						margin: '0 -1ch 0 0',
 					},
-				};
-			}),
-		);
+				},
+			};
+		});
+
+		if (preview.overflow) {
+			decorations.push({
+				range: new vscode.Range(this.range.end, this.range.end),
+				renderOptions: {
+					after: {
+						contentText: preview.overflow,
+						color: new vscode.ThemeColor('editor.foreground'),
+					},
+				},
+			});
+		}
+
+		this.editor.setDecorations(this.shuffledCharacters, decorations);
 	}
+}
+
+export function splitStreamedText(text: string, capacity: number): { readonly revealed: readonly string[]; readonly overflow: string } {
+	const characters = [...text];
+	return {
+		revealed: characters.slice(0, capacity),
+		overflow: characters.slice(capacity).join(''),
+	};
 }
 
 export function classifyCharacter(character: string): CharacterKind {
@@ -140,16 +174,14 @@ function getAnimatedCharacters(document: vscode.TextDocument, range: vscode.Rang
 
 	for (const character of selectedText) {
 		const characterLength = character.length;
-		if (classifyCharacter(character) !== 'whitespace') {
-			characters.push({
-				range: new vscode.Range(
-					document.positionAt(startOffset + relativeOffset),
-					document.positionAt(startOffset + relativeOffset + characterLength),
-				),
-				source: character,
-				previous: undefined,
-			});
-		}
+		characters.push({
+			range: new vscode.Range(
+				document.positionAt(startOffset + relativeOffset),
+				document.positionAt(startOffset + relativeOffset + characterLength),
+			),
+			source: character,
+			previous: undefined,
+		});
 		relativeOffset += characterLength;
 	}
 

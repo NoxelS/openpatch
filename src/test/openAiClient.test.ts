@@ -3,13 +3,13 @@ import * as assert from 'assert';
 import { PatchConfiguration } from '../configuration';
 import {
 	buildChatCompletionBody,
-	parseChatCompletion,
+	chatCompletionsUrl,
 	PatchRequestError,
 	requestPatch,
 } from '../openAiClient';
 
 const configuration: PatchConfiguration = {
-	endpoint: 'https://example.com/v1/chat/completions',
+	openAiBaseUrl: 'https://example.com/v1',
 	model: 'test-model',
 	systemPrompt: 'Patch Markdown.',
 	requestTimeoutMs: 1000,
@@ -17,6 +17,24 @@ const configuration: PatchConfiguration = {
 	chatTemplateKwargs: {},
 	apiKey: 'secret-value',
 };
+
+function streamingResponse(...chunks: string[]): Response {
+	return streamingResponseBytes(chunks.map((chunk) => new TextEncoder().encode(chunk)));
+}
+
+function streamingResponseBytes(chunks: readonly Uint8Array[]): Response {
+	return new Response(new ReadableStream<Uint8Array>({
+		start(controller) {
+			for (const chunk of chunks) {
+				controller.enqueue(chunk);
+			}
+			controller.close();
+		},
+	}), {
+		status: 200,
+		headers: { 'Content-Type': 'text/event-stream' },
+	});
+}
 
 suite('OpenAI-compatible client', () => {
 	test('builds the contextual request without losing delimiter-like content', () => {
@@ -26,7 +44,7 @@ suite('OpenAI-compatible client', () => {
 			instruction: 'Improve this.',
 			selectedMarkdown,
 			documentMarkdown,
-		}) as { messages: Array<{ role: string; content: string }> };
+		}) as { messages: Array<{ role: string; content: string }>; stream: boolean };
 
 		assert.strictEqual(body.messages[0].role, 'system');
 		assert.strictEqual(body.messages[0].content, configuration.systemPrompt);
@@ -35,6 +53,7 @@ suite('OpenAI-compatible client', () => {
 			selected_markdown: selectedMarkdown,
 			document_markdown: documentMarkdown,
 		});
+		assert.strictEqual(body.stream, true);
 	});
 
 	test('forwards configured chat-template kwargs independently of the model', () => {
@@ -49,54 +68,83 @@ suite('OpenAI-compatible client', () => {
 		assert.strictEqual(defaultBody.chat_template_kwargs, undefined);
 	});
 
-	test('parses string and text-part responses exactly', () => {
-		assert.strictEqual(parseChatCompletion({ choices: [{ message: { content: '  replacement\n' } }] }), '  replacement\n');
-		assert.strictEqual(
-			parseChatCompletion({ choices: [{ message: { content: [{ type: 'text', text: 'one' }, { type: 'text', text: 'two' }] } }] }),
-			'onetwo',
-		);
-	});
-
-	test('rejects missing replacement text', () => {
-		assert.throws(() => parseChatCompletion({ choices: [{ message: { content: '' } }] }), PatchRequestError);
-	});
-
-	test('sends bearer authentication and returns replacement content', async () => {
+	test('streams deltas to the preview and returns their combined replacement', async () => {
 		let capturedUrl = '';
 		let capturedInit: RequestInit | undefined;
+		const receivedDeltas: string[] = [];
 		const fakeFetch = async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
 			capturedUrl = input.toString();
 			capturedInit = init;
-			return new Response(JSON.stringify({ choices: [{ message: { content: 'patched' } }] }), {
-				status: 200,
-				headers: { 'Content-Type': 'application/json' },
-			});
+			return streamingResponse(
+				'data: {"choices":[{"delta":{"content":"patch"}}]}\n\n',
+				'data: {"choices":[{"delta":{"content":"ed"}}]}\n\n',
+				'data: [DONE]\n\n',
+			);
 		};
 
 		const result = await requestPatch(
 			configuration,
 			{ instruction: 'Fix it.', selectedMarkdown: 'before', documentMarkdown: '# Document\n\nbefore' },
 			new AbortController().signal,
+			(delta) => receivedDeltas.push(delta),
 			fakeFetch,
 		);
 
 		assert.strictEqual(result, 'patched');
-		assert.strictEqual(capturedUrl, configuration.endpoint);
+		assert.deepStrictEqual(receivedDeltas, ['patch', 'ed']);
+		assert.strictEqual(capturedUrl, 'https://example.com/v1/chat/completions');
 		assert.strictEqual((capturedInit?.headers as Record<string, string>).Authorization, 'Bearer secret-value');
+		assert.strictEqual((capturedInit?.headers as Record<string, string>).Accept, 'text/event-stream');
 		assert.strictEqual(capturedInit?.redirect, 'error');
+	});
+
+	test('joins Chat Completions onto a normalized OpenAI base URL', () => {
+		assert.strictEqual(chatCompletionsUrl('https://example.com/v1'), 'https://example.com/v1/chat/completions');
+		assert.strictEqual(chatCompletionsUrl('https://example.com/v1/'), 'https://example.com/v1/chat/completions');
+	});
+
+	test('handles events split across response chunks', async () => {
+		const result = await requestPatch(
+			configuration,
+			{ instruction: 'Fix it.', selectedMarkdown: 'before', documentMarkdown: '# Document\n\nbefore' },
+			new AbortController().signal,
+			undefined,
+			async () => streamingResponse(
+				'data: {"choices":[{"delta":{"content":"pa',
+				'tched"}}]}\n\n',
+				'data: [DONE]\n\n',
+			),
+		);
+
+		assert.strictEqual(result, 'patched');
+	});
+
+	test('preserves a streamed Unicode character split across UTF-8 chunks', async () => {
+		const encoded = new TextEncoder().encode('data: {"choices":[{"delta":{"content":"é"}}]}\n\ndata: [DONE]\n\n');
+		const splitAt = encoded.indexOf(0xc3) + 1;
+		const result = await requestPatch(
+			configuration,
+			{ instruction: 'Fix it.', selectedMarkdown: 'before', documentMarkdown: '# Document\n\nbefore' },
+			new AbortController().signal,
+			undefined,
+			async () => streamingResponseBytes([encoded.slice(0, splitAt), encoded.slice(splitAt)]),
+		);
+
+		assert.strictEqual(result, 'é');
 	});
 
 	test('omits authentication when no key is configured', async () => {
 		let capturedHeaders: Record<string, string> | undefined;
 		const fakeFetch = async (_input: string | URL | Request, init?: RequestInit): Promise<Response> => {
 			capturedHeaders = init?.headers as Record<string, string>;
-			return new Response(JSON.stringify({ choices: [{ message: { content: 'patched' } }] }), { status: 200 });
+			return streamingResponse('data: {"choices":[{"delta":{"content":"patched"}}]}\n\n', 'data: [DONE]\n\n');
 		};
 
 		await requestPatch(
 			{ ...configuration, apiKey: undefined },
 			{ instruction: 'Fix it.', selectedMarkdown: 'before', documentMarkdown: '# Document\n\nbefore' },
 			new AbortController().signal,
+			undefined,
 			fakeFetch,
 		);
 
@@ -110,9 +158,23 @@ suite('OpenAI-compatible client', () => {
 				configuration,
 				{ instruction: 'Fix it.', selectedMarkdown: 'before', documentMarkdown: '# Document\n\nbefore' },
 				new AbortController().signal,
+				undefined,
 				fakeFetch,
 			),
 			(error: unknown) => error instanceof PatchRequestError && error.status === 429 && !error.message.includes('sensitive'),
+		);
+	});
+
+	test('rejects an incomplete stream without returning a partial replacement', async () => {
+		await assert.rejects(
+			requestPatch(
+				configuration,
+				{ instruction: 'Fix it.', selectedMarkdown: 'before', documentMarkdown: '# Document\n\nbefore' },
+				new AbortController().signal,
+				undefined,
+				async () => streamingResponse('data: {"choices":[{"delta":{"content":"partial"}}]}\n\n'),
+			),
+			PatchRequestError,
 		);
 	});
 
@@ -134,6 +196,7 @@ suite('OpenAI-compatible client', () => {
 			configuration,
 			{ instruction: 'Fix it.', selectedMarkdown: 'before', documentMarkdown: '# Document\n\nbefore' },
 			controller.signal,
+			undefined,
 			fakeFetch,
 		);
 		controller.abort();

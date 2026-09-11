@@ -3,7 +3,7 @@ import * as assert from 'assert';
 import { ConfigurationError, validateConfiguration } from '../configuration';
 
 const validValues = {
-	endpoint: 'https://example.com/v1/chat/completions',
+	openAiBaseUrl: 'https://example.com/v1',
 	model: 'example-model',
 	systemPrompt: 'Patch Markdown.',
 	requestTimeoutMs: 60000,
@@ -12,11 +12,11 @@ const validValues = {
 };
 
 suite('configuration', () => {
-	test('accepts HTTPS and loopback HTTP endpoints', () => {
-		assert.strictEqual(validateConfiguration(validValues).endpoint, validValues.endpoint);
+	test('accepts HTTPS and loopback HTTP OpenAI base URLs', () => {
+		assert.strictEqual(validateConfiguration(validValues).openAiBaseUrl, validValues.openAiBaseUrl);
 		assert.strictEqual(
-			validateConfiguration({ ...validValues, endpoint: 'http://localhost:11434/v1/chat/completions' }).endpoint,
-			'http://localhost:11434/v1/chat/completions',
+			validateConfiguration({ ...validValues, openAiBaseUrl: 'http://localhost:11434/v1' }).openAiBaseUrl,
+			'http://localhost:11434/v1',
 		);
 	});
 
@@ -27,9 +27,13 @@ suite('configuration', () => {
 		);
 	});
 
-	test('rejects insecure remote endpoints', () => {
+	test('rejects insecure remote OpenAI base URLs and bases with request-specific components', () => {
 		assert.throws(
-			() => validateConfiguration({ ...validValues, endpoint: 'http://example.com/v1/chat/completions' }),
+			() => validateConfiguration({ ...validValues, openAiBaseUrl: 'http://example.com/v1' }),
+			ConfigurationError,
+		);
+		assert.throws(
+			() => validateConfiguration({ ...validValues, openAiBaseUrl: 'https://example.com/v1?stream=true' }),
 			ConfigurationError,
 		);
 	});

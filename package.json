@@ -51,12 +51,12 @@
     "configuration": {
       "title": "OpenPatch",
       "properties": {
-        "openpatch.endpoint": {
+        "openpatch.openAiBaseUrl": {
           "type": "string",
-          "default": "https://api.openai.com/v1/chat/completions",
+          "default": "https://api.openai.com/v1",
           "scope": "machine",
           "order": 1,
-          "description": "Full URL of an OpenAI-compatible Chat Completions endpoint. HTTPS is required except for loopback addresses."
+          "description": "Base URL of an OpenAI-compatible API. OpenPatch adds /chat/completions for streamed patch requests. HTTPS is required except for loopback addresses."
         },
         "openpatch.model": {
           "type": "string",
