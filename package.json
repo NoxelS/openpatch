@@ -20,6 +20,7 @@
   "activationEvents": [
     "onLanguage:markdown",
     "onCommand:openpatch.patchSelection",
+    "onCommand:openpatch.toggleEnabled",
     "onCommand:openpatch.setApiKey",
     "onCommand:openpatch.clearApiKey"
   ],
@@ -40,12 +41,23 @@
         "title": "OpenPatch: Patch Selected Markdown"
       },
       {
+        "command": "openpatch.toggleEnabled",
+        "title": "OpenPatch: Toggle Automatic Patching"
+      },
+      {
         "command": "openpatch.setApiKey",
         "title": "OpenPatch: Set API Key"
       },
       {
         "command": "openpatch.clearApiKey",
         "title": "OpenPatch: Clear API Key"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "openpatch.toggleEnabled",
+        "key": "ctrl+alt+o",
+        "mac": "cmd+alt+o"
       }
     ],
     "configuration": {

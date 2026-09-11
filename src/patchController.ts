@@ -40,8 +40,21 @@ export class PatchController implements vscode.Disposable {
 	private activeRequestCount = 0;
 	private maxConcurrentPatches = 3;
 	private disposed = false;
+	private automaticPatchingEnabled: boolean;
 
-	constructor(private readonly secrets: vscode.SecretStorage) {}
+	constructor(private readonly secrets: vscode.SecretStorage, automaticPatchingEnabled = true) {
+		this.automaticPatchingEnabled = automaticPatchingEnabled;
+	}
+
+	toggleAutomaticPatching(): boolean {
+		this.automaticPatchingEnabled = !this.automaticPatchingEnabled;
+		this.clearDebounce();
+		this.lastHandledSelection = undefined;
+		if (!this.automaticPatchingEnabled) {
+			this.promptController?.abort();
+		}
+		return this.automaticPatchingEnabled;
+	}
 
 	onSelectionChanged(event: vscode.TextEditorSelectionChangeEvent): void {
 		if (this.disposed) {
@@ -49,6 +62,9 @@ export class PatchController implements vscode.Disposable {
 		}
 
 		this.clearDebounce();
+		if (!this.automaticPatchingEnabled) {
+			return;
+		}
 		const snapshot = createSelectionSnapshot(event.textEditor, event.selections);
 		if (!snapshot) {
 			this.promptController?.abort();
@@ -70,7 +86,7 @@ export class PatchController implements vscode.Disposable {
 
 		this.debounceTimer = setTimeout(() => {
 			this.debounceTimer = undefined;
-			if (isSnapshotCurrent(snapshot)) {
+			if (this.automaticPatchingEnabled && isSnapshotCurrent(snapshot)) {
 				void this.promptAndPatch(snapshot);
 			}
 		}, SELECTION_DEBOUNCE_MS);
