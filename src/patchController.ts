@@ -38,11 +38,11 @@ export class PatchController implements vscode.Disposable {
 			return;
 		}
 
-		if (snapshot.identity === this.lastHandledSelection) {
-			return;
-		}
 		if (this.promptController) {
 			this.promptController.abort();
+		}
+		if (snapshot.identity === this.lastHandledSelection) {
+			return;
 		}
 
 		this.debounceTimer = setTimeout(() => {
@@ -53,8 +53,8 @@ export class PatchController implements vscode.Disposable {
 		}, SELECTION_DEBOUNCE_MS);
 	}
 
-	onActiveEditorChanged(editor: vscode.TextEditor | undefined): void {
-		if (!editor || this.disposed || this.requestController) {
+	onActiveEditorChanged(): void {
+		if (this.disposed || this.requestController) {
 			return;
 		}
 
@@ -82,6 +82,10 @@ export class PatchController implements vscode.Disposable {
 
 	submitInlinePrompt(reply?: vscode.CommentReply): void {
 		this.promptInput.submit(reply);
+	}
+
+	cancelInlinePrompt(target?: vscode.CommentReply | vscode.CommentThread): void {
+		this.promptInput.cancel(target);
 	}
 
 	dispose(): void {

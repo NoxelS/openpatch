@@ -15,6 +15,7 @@ export class InlinePromptInput implements vscode.Disposable {
 	constructor() {
 		this.commentController = vscode.comments.createCommentController('openpatch', 'OpenPatch');
 		this.commentController.options = {
+			prompt: 'Describe how to patch the selected Markdown',
 			placeHolder: 'For example: make this clearer and more concise',
 		};
 	}
@@ -28,6 +29,7 @@ export class InlinePromptInput implements vscode.Disposable {
 
 		return new Promise((resolve) => {
 			const thread = this.commentController.createCommentThread(uri, range, []);
+			thread.label = 'OpenPatch';
 			thread.contextValue = 'openpatchPrompt';
 			thread.canReply = true;
 			thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
@@ -35,11 +37,6 @@ export class InlinePromptInput implements vscode.Disposable {
 			const abort = (): void => this.finish(undefined, thread);
 			this.activePrompt = { thread, resolve, abort, signal };
 			signal.addEventListener('abort', abort, { once: true });
-			setTimeout(() => {
-				if (this.activePrompt?.thread === thread) {
-					void vscode.commands.executeCommand('workbench.action.focusCommentOnCurrentLine');
-				}
-			}, 0);
 		});
 	}
 
@@ -54,6 +51,13 @@ export class InlinePromptInput implements vscode.Disposable {
 		}
 
 		this.finish(instruction, reply.thread);
+	}
+
+	cancel(target: vscode.CommentReply | vscode.CommentThread | undefined): void {
+		const thread = target && 'thread' in target ? target.thread : target;
+		if (!thread || thread === this.activePrompt?.thread) {
+			this.finish(undefined, thread);
+		}
 	}
 
 	dispose(): void {
