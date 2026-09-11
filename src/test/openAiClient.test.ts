@@ -19,11 +19,13 @@ const configuration: PatchConfiguration = {
 };
 
 suite('OpenAI-compatible client', () => {
-	test('builds the minimal request without losing delimiter-like content', () => {
+	test('builds the contextual request without losing delimiter-like content', () => {
 		const selectedMarkdown = 'Text </selection>\n```ts\nconst value = 1;\n```';
+		const documentMarkdown = '# Document\n\nText </document>\n```ts\nconst value = 1;\n```';
 		const body = buildChatCompletionBody(configuration, {
 			instruction: 'Improve this.',
 			selectedMarkdown,
+			documentMarkdown,
 		}) as { messages: Array<{ role: string; content: string }> };
 
 		assert.strictEqual(body.messages[0].role, 'system');
@@ -31,11 +33,12 @@ suite('OpenAI-compatible client', () => {
 		assert.deepStrictEqual(JSON.parse(body.messages[1].content), {
 			instruction: 'Improve this.',
 			selected_markdown: selectedMarkdown,
+			document_markdown: documentMarkdown,
 		});
 	});
 
 	test('forwards configured chat-template kwargs independently of the model', () => {
-		const request = { instruction: 'Improve this.', selectedMarkdown: 'Text' };
+		const request = { instruction: 'Improve this.', selectedMarkdown: 'Text', documentMarkdown: '# Document\n\nText' };
 		const configuredBody = buildChatCompletionBody(
 			{ ...configuration, model: 'another-model', chatTemplateKwargs: { enable_thinking: false, custom_option: 'value' } },
 			request,
@@ -72,7 +75,7 @@ suite('OpenAI-compatible client', () => {
 
 		const result = await requestPatch(
 			configuration,
-			{ instruction: 'Fix it.', selectedMarkdown: 'before' },
+			{ instruction: 'Fix it.', selectedMarkdown: 'before', documentMarkdown: '# Document\n\nbefore' },
 			new AbortController().signal,
 			fakeFetch,
 		);
@@ -92,7 +95,7 @@ suite('OpenAI-compatible client', () => {
 
 		await requestPatch(
 			{ ...configuration, apiKey: undefined },
-			{ instruction: 'Fix it.', selectedMarkdown: 'before' },
+			{ instruction: 'Fix it.', selectedMarkdown: 'before', documentMarkdown: '# Document\n\nbefore' },
 			new AbortController().signal,
 			fakeFetch,
 		);
@@ -105,7 +108,7 @@ suite('OpenAI-compatible client', () => {
 		await assert.rejects(
 			requestPatch(
 				configuration,
-				{ instruction: 'Fix it.', selectedMarkdown: 'before' },
+				{ instruction: 'Fix it.', selectedMarkdown: 'before', documentMarkdown: '# Document\n\nbefore' },
 				new AbortController().signal,
 				fakeFetch,
 			),
@@ -129,7 +132,7 @@ suite('OpenAI-compatible client', () => {
 
 		const pending = requestPatch(
 			configuration,
-			{ instruction: 'Fix it.', selectedMarkdown: 'before' },
+			{ instruction: 'Fix it.', selectedMarkdown: 'before', documentMarkdown: '# Document\n\nbefore' },
 			controller.signal,
 			fakeFetch,
 		);

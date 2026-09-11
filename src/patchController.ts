@@ -216,7 +216,11 @@ export class PatchController implements vscode.Disposable {
 					try {
 						return await requestPatch(
 							job.configuration,
-							{ instruction: job.instruction, selectedMarkdown: job.selectedText },
+							{
+								instruction: job.instruction,
+								selectedMarkdown: job.selectedText,
+								documentMarkdown: job.editor.document.getText(),
+							},
 							job.requestController.signal,
 						);
 					} finally {

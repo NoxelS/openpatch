@@ -3,6 +3,7 @@ import { PatchConfiguration } from './configuration';
 export interface PatchRequest {
 	readonly instruction: string;
 	readonly selectedMarkdown: string;
+	readonly documentMarkdown: string;
 }
 
 export class PatchRequestError extends Error {
@@ -29,6 +30,7 @@ export function buildChatCompletionBody(configuration: PatchConfiguration, reque
 				content: JSON.stringify({
 					instruction: request.instruction,
 					selected_markdown: request.selectedMarkdown,
+					document_markdown: request.documentMarkdown,
 				}),
 			},
 		],
