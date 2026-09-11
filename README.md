@@ -1,50 +1,64 @@
-# OpenPatch
+<p align="center">
+  <img src="assets/openpatch.png" width="112" alt="OpenPatch logo">
+</p>
 
-Edit selected Markdown with an AI endpoint you choose. Select text, describe the change, and OpenPatch streams a proposed replacement directly into the selection.
+<h1 align="center">OpenPatch</h1>
 
-OpenPatch is a desktop VS Code extension. It runs locally in the VS Code UI and works with OpenAI-compatible Chat Completions endpoints.
+<p align="center"><strong>Edit Markdown in VS Code with the AI you choose.</strong></p>
+
+<p align="center">Select text. Describe the edit. Get a patch in place.</p>
+
+OpenPatch is a VS Code extension that rewrites selected Markdown without leaving your editor. Select a passage, tell it what to change, and OpenPatch replaces that selection with a streamed AI patch.
+
+**No chat copy-paste.** No moving text into a browser, waiting on a conversation, then pasting an answer back into your file. Your edit happens where you write.
+
+![OpenPatch demo](assets/openpatch-demo.gif)
+
+## What you do
+
+1. Select the Markdown you want to change.
+2. Enter an instruction, such as `make this more concise` or `turn this into a checklist`.
+3. OpenPatch streams the replacement directly into that selection.
+
+It is that simple. Automatic patching opens the instruction prompt when you select text; turn it off if you prefer to run **OpenPatch: Patch Selected Markdown** yourself from the Command Palette.
 
 ## Install
 
 Install **OpenPatch** from the Visual Studio Marketplace, or download a release `.vsix` and use **Extensions: Install from VSIX...** in VS Code.
 
-## Use
+## Bring your own AI
 
-1. Open a Markdown file and select the text to change.
-2. Select **OpenPatch: Patch Selected Markdown** from the Command Palette.
-3. Describe the desired edit and accept the streamed replacement.
+OpenPatch works with OpenAI-compatible Chat Completions endpoints. Bring the provider, model, and API key that fit your work: a hosted API, an internal gateway, or a local model server.
 
-Automatic patching is enabled by default. Toggle it with **OpenPatch: Toggle Automatic Patching**; the manual command remains available at all times.
+**Batteries not included.** OpenPatch does not include a model, an AI subscription, or a hosted service. You provide the endpoint and, when it needs one, the API key. Your data and AI spend stay under your control.
 
-## Configure
+For every patch, OpenPatch sends your instruction, selected Markdown, and the active Markdown document as context to the endpoint you configure. Use an endpoint you trust and avoid selecting content you would not share with its operator.
 
-OpenPatch deliberately has no vendor lock-in. Configure these settings in VS Code:
+## Set it up
 
-| Setting | Purpose |
+In VS Code Settings, configure these three essentials:
+
+| Setting | What it controls |
 | --- | --- |
-| `openpatch.openAiBaseUrl` | OpenAI-compatible API base URL. HTTPS is required except for loopback addresses. |
-| `openpatch.model` | Model identifier sent to that endpoint. |
-| `openpatch.systemPrompt` | Instructions controlling the replacement. |
-| `openpatch.requestTimeoutMs` | Per-request timeout, from 1 second to 5 minutes. |
-| `openpatch.maxConcurrentPatches` | Number of independent selections processed at once. |
-| `openpatch.chatTemplateKwargs` | Endpoint-specific chat-template options, such as `{ "enable_thinking": false }`. |
+| `openpatch.openAiBaseUrl` | Your OpenAI-compatible API base URL. HTTPS is required except for loopback addresses. |
+| `openpatch.model` | The model name sent to that endpoint. |
+| `openpatch.systemPrompt` | The instructions that govern the patch. |
 
-Use **OpenPatch: Set API Key** to save an optional bearer key in VS Code SecretStorage, and **OpenPatch: Clear API Key** to remove it.
+Then run **OpenPatch: Set API Key** to store an optional bearer key in VS Code SecretStorage. If your endpoint does not require a key, leave it unset.
 
-## Privacy and data handling
+### Useful controls
 
-OpenPatch sends the following to the endpoint you configure for each patch request:
+| Setting or command | What it does |
+| --- | --- |
+| `openpatch.requestTimeoutMs` | Sets the request timeout, from 1 second to 5 minutes. |
+| `openpatch.maxConcurrentPatches` | Limits how many independent selections can be patched at once. |
+| `openpatch.chatTemplateKwargs` | Passes endpoint-specific chat-template options, such as `{ "enable_thinking": false }`. |
+| **OpenPatch: Toggle Automatic Patching** | Enables or disables selection-triggered patching. |
+| **OpenPatch: Clear API Key** | Removes the stored key from VS Code SecretStorage. |
 
-- Your instruction.
-- The selected Markdown to replace.
-- The full active Markdown document, as context.
-- The configured model identifier and any chat-template keyword arguments.
+## For contributors
 
-Your endpoint operator determines how that data is retained and processed. Use a trusted endpoint, do not select documents whose contents you do not want to share with it, and review its privacy terms. OpenPatch stores an optional API key only in VS Code SecretStorage. It does not provide a hosted AI service.
-
-## Development
-
-This project requires Node.js 22 or newer.
+OpenPatch requires Node.js 22 or newer.
 
 ```bash
 npm ci
@@ -52,18 +66,14 @@ npm test
 npm run package:vsix
 ```
 
-The final command creates `openpatch-<version>.vsix`, which can be tested with:
+`npm run package:vsix` creates `openpatch-<version>.vsix`. Test it in VS Code with:
 
 ```bash
 code --install-extension openpatch-<version>.vsix
 ```
 
-## Contributing and support
-
-Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report bugs and feature ideas through [GitHub Issues](https://github.com/NoxelS/openpatch/issues); see [SUPPORT.md](SUPPORT.md) for support boundaries. Security vulnerabilities must follow [SECURITY.md](SECURITY.md), not public issues.
-
-Maintainers can find the one-time Marketplace setup and automatic-release behavior in [RELEASING.md](RELEASING.md).
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Bug reports and feature ideas belong in [GitHub Issues](https://github.com/NoxelS/openpatch/issues). For support, security reporting, and release information, see [SUPPORT.md](SUPPORT.md), [SECURITY.md](SECURITY.md), and [RELEASING.md](RELEASING.md).
 
 ## License
 
-OpenPatch is released under the [MIT License](LICENSE).
+OpenPatch is available under the [MIT License](LICENSE).
