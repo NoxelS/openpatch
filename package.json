@@ -159,7 +159,7 @@
     "webpack-cli": "^7.0.3",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.0.0",
-    "@vscode/vsce": "^3.9.2"
+    "@vscode/vsce": "^4.0.0"
   },
   "overrides": {
     "diff": "^8.0.4",
